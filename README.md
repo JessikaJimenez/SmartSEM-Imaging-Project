@@ -1,5 +1,5 @@
 # SmartSEM-Imaging-Project
-Jessika Jimenez
+Jessika Jimenez  
 University of Utah  
 ECE 3970 (Undergraduate Research)  
 
