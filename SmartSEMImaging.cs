@@ -12,9 +12,9 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace SmartSEMImaging
 {
-    class Program
+    class SmartSEMImaging
     {
-        static Dictionary<string, Image<Gray, byte>> IMGDictionary; //Dictionary for images
+        static Dictionary<string, Image<Gray, byte>> IMGDictionary; // Dictionary for images
 
         static void Main(string[] args)
         {    
@@ -44,10 +44,10 @@ namespace SmartSEMImaging
 
 
             /*
-           // -- TEST -- Grab image from EM Method
+           // -- TEST -- Grab image from SmartSEM API (grab) method
            if (apiInitialised)
            {
-               Console.WriteLine("Testing -- Grab (image) Method\n");
+               Console.WriteLine("Testing -- Image (grab) Method\n");
 
                // User input section:
                Console.WriteLine("To grab EM image, please enter the following parameters.");
@@ -122,7 +122,6 @@ namespace SmartSEMImaging
 
 
 
-
             // -- TEST -- Get image from file, edge/shape detection, ...
             if (apiInitialised)
             {
@@ -135,20 +134,20 @@ namespace SmartSEMImaging
 
 
                 // Variables for gray-scaling/edge detection/shape detection/etc
-                Image<Bgr,  Byte> m_SourceImage    = new Image<Bgr,  byte>(FileName);             // Stores user inputted image in original color
-                Image<Gray, Byte> m_SourceImageGray = new Image<Gray, byte>(m_SourceImage.Size);  // Makes original source image grayscale
-                Image<Gray, Byte> m_InvertedImage  = new Image<Gray, byte>(m_SourceImage.Size);   // Makes source image inverted (light slides/dark backgnd)
-                Image<Gray, Byte> m_ThresholdImage = new Image<Gray, byte>(m_SourceImage.Size);   // Gets inverted thresholded corners
-                Image<Gray, Byte> m_EdgesImage     = new Image<Gray, byte>(m_SourceImage.Size);   // Gets image edges using Canny
-                Image<Gray, Byte> m_ContoursImage  = new Image<Gray, byte>(m_SourceImage.Size);   // Gets image contours                
-                Image<Gray, Byte> m_AlteredInputImage = new Image<Gray, byte>(m_SourceImage.Size); // 
-
+                Image<Bgr, byte> m_SourceImage    = new Image<Bgr,  byte>(FileName);               // Stores user inputted image in original color
+                Image<Gray, byte> m_SourceImageGray = new Image<Gray, byte>(m_SourceImage.Size);   // Makes original source image grayscale
+                Image<Gray, byte> m_InvertedImage  = new Image<Gray, byte>(m_SourceImage.Size);    // Makes source image inverted (light slides/dark backgnd)
+                Image<Gray, byte> m_ThresholdImage = new Image<Gray, byte>(m_SourceImage.Size);    // Gets inverted thresholded corners
+                Image<Gray, byte> m_EdgesImage     = new Image<Gray, byte>(m_SourceImage.Size);    // Gets image edges using Canny
+                Image<Gray, byte> m_ContoursImage  = new Image<Gray, byte>(m_SourceImage.Size);    // Gets image contours                
+                Image<Gray, byte> m_AlteredInputImage = new Image<Gray, byte>(m_SourceImage.Size); // Image to be used for image dictionary
+                Image<Gray, byte> m_ShapeMatchedImage = new Image<Gray, byte>(m_SourceImage.Size); // Image that's gone through edge detection + shape contour matching
 
                 // Convert source image to grayscale instead of Bgr
-                m_SourceImageGray = m_SourceImage.Convert<Gray, Byte>();
+                m_SourceImageGray = m_SourceImage.Convert<Gray, byte>();
 
-                // Sharpen image to make it better
-                Image<Gray, Byte> m_SharpenedImage = new Image<Gray, byte>(m_SourceImage.Size);
+                // Sharpen image to try and better differentiate it from background
+                Image<Gray, byte> m_SharpenedImage = new Image<Gray, byte>(m_SourceImage.Size);
                 m_SharpenedImage = Sharpen(m_SourceImageGray, 100, 10, 10);                         
 
                 // Inverts original user inputted m_InvertedImageimage so slides are lighter in color than the background
@@ -159,62 +158,35 @@ namespace SmartSEMImaging
                 CvInvoke.Canny(m_SharpenedImage, m_EdgesImage, 100, 100);
 
                 // Applies active thresholding, which decides whether edges are present or not at an image point
-                // -Can adjust the 5th parameter here to be odd numbers to adjust thresholding slightly
                 CvInvoke.AdaptiveThreshold(m_EdgesImage, m_ThresholdImage, 255, AdaptiveThresholdType.GaussianC, ThresholdType.BinaryInv, 301, 0.0);
-                         
-                // Create shape contours from image for shape detection                
-                //m_ContoursImage = m_ThresholdImage.ThresholdBinary(new Gray(110), new Gray(255));
-                m_ContoursImage = m_ThresholdImage;
-                VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint();
-                Mat hierarchy = new Mat();
-                CvInvoke.FindContours(m_ContoursImage, contours, hierarchy, RetrType.External, ChainApproxMethod.ChainApproxSimple);
-                CvInvoke.DrawContours(m_ContoursImage, contours, -1, new MCvScalar(255, 0, 0));  //displays contours
-
 
                 /* // Detect corners from image using Harris corners mthod
                 Image<Gray, float> m_CornerImage = null;
                 m_CornerImage = new Image<Gray, float>(m_SourceImage.Size);
                 CvInvoke.CornerHarris(m_ContoursImage, m_CornerImage, 2, 3, 0.04);
                 //CvInvoke.Normalize(m_CornerImage, m_CornerImage, 255, 0, Emgu.CV.CvEnum.NormType.MinMax); //Currently trash! */
-                
 
 
-                // **TODO**
-                // Check all shapes and detect trapezoids 
-                // Then get corners and store corners with respective trapezoid
-
-                
+                // Check all shapes and detect trapezoids
                 // Copies initial image that's been altered by other image processing methods & runs trapezoid shape detection on it
                 IMGDictionary = new Dictionary<string, Image<Gray, byte>>(); // initialize image dictionary
-                m_AlteredInputImage = m_ContoursImage; // copied image from canny/thresholding/contours
+                m_AlteredInputImage = m_ThresholdImage; // copied image from canny/thresholding
                 //check if image dictinary contains input key already 
                 if (IMGDictionary.ContainsKey("input"))
                 {
                     IMGDictionary.Remove("input");
                 }
                 IMGDictionary.Add("input", m_AlteredInputImage);
-                
-                // apply shape matching method
-                ApplyShapeMatching();
-                
 
-                //Emgu.CV.Util.VectorOfVectorOfPoint approxContour = new Emgu.CV.Util.VectorOfVectorOfPoint();
-                //Image<Gray, Byte> approxContour = new Image<Gray, Byte>(m_SourceImage.Size);                
-                for (int i = 0; i < contours.Size; i++)
-                {
-                    using (VectorOfPoint c = contours[i])
-                    using (VectorOfPoint approxContour = new VectorOfPoint())
-                    {
-                        CvInvoke.ApproxPolyDP(c, approxContour, CvInvoke.ArcLength(c, true) * .05, true);
-                        //double area = CvInvoke.ContourArea(approxContour);
-                        //double ratio = CvInvoke.MatchShapes(**trapezoid**, approxContour, ContoursMatchType.I3);
-                    }
-                }
-                //CvInvoke.Polylines(m_ContoursImage, approxContour, true, new Bgr(Color.DarkOrange).MCvScalar, 1);  //displays polygons
+                // apply shape matching method
+                m_ShapeMatchedImage = ApplyShapeMatching();
+
+
+                //**TODO -- after detecting all trapezoids, get corners and store corners with respective trapezoid
 
 
                 // Displays altered image
-                Image<Gray, Byte> m_OutputImage = m_ContoursImage;
+                Image<Gray, byte> m_OutputImage = m_ShapeMatchedImage;
                 String win1 = "Test Window"; //The name of the window
                 CvInvoke.NamedWindow(win1); //Create the window using the specific name
                 CvInvoke.Imshow(win1, m_OutputImage); //Show the image
@@ -226,12 +198,11 @@ namespace SmartSEMImaging
             }//End of If(apiInitialized)
 
 
-
         }//End of Main
 
 
-
         /// <summary>
+        /// Mathod that sharpens an input image.
         /// Algorithm to sharpen an image:
         /// 1. Blur the original image using the Gaussian filter with given Mask Size & Sigma
         /// 2. Subtract the blurred image from the original (result is called Mask) to eliminate background and get the edges regions
@@ -242,7 +213,7 @@ namespace SmartSEMImaging
         /// <param name="sigma2"></param>
         /// <param name="k"> User input (If K = 1 Unsharp, If K > 1 Highboost) </param>
         /// <returns> Sharpened image </returns>
-        static Image<Gray, byte> Sharpen (Image<Gray, byte> image, double sigma1, double sigma2, int k)
+        private static Image<Gray, byte> Sharpen (Image<Gray, byte> image, double sigma1, double sigma2, int k)
         {
             var h = image.Height;
             var w = image.Width;
@@ -263,37 +234,90 @@ namespace SmartSEMImaging
         }
 
 
-
-        // **TODO -- shape matching method
         /// <summary>
-        /// Method to match input image shapes to determine if they're trapezoids
+        /// Method to match input image shapes with a template to locate trapezoids in the image.
         /// </summary>
         /// <param name="shape_threshold"></param>
         /// <exception cref="Exception"></exception>
-        private static void ApplyShapeMatching(double shape_threshold = 0.1)
+        private static Image<Gray, byte> ApplyShapeMatching(double shape_threshold = 0.1)
         {
-            string shapefile = "C:\\Users\\jessi\\Desktop\\SmartSEM (ECE 3970)\\Pics for ECE 3970\\trapezoid_reference.tif";
-            Image<Gray, Byte> m_shape_template = new Image<Gray, byte>(shapefile); //image that's a template to compare against an image in image dictionary
+            string shapefile = "C:\\Users\\jessi\\Desktop\\SmartSEM (ECE 3970)\\Pics for ECE 3970\\trapezoid_reference.tif"; // address for template image (trapezoid shape)
+            Image<Gray, byte> m_ShapeTemplate = new Image<Gray, byte>(shapefile); //image that's a template to compare against image in image dictionary
 
             try
             {
                 if (IMGDictionary["input"] == null)
                 {
-                    throw new Exception("Error: Select an image");
+                    throw new Exception("Error: Select an input image");
                 }
-                var img_dict_clone = IMGDictionary["input"].Clone().SmoothGaussian(3); //copy the input image from image dictionary
-                
-                //**TODO** --- STOPPED VIDEO HERE EmguCV # 71 Shape Matching in EmguCV - Part-I (12:00)
+
+                Image<Gray, byte> m_DictClone = IMGDictionary["input"].Clone(); //copies the input image in image dictionary
+                var m_DictContours = CalculateContours(m_DictClone); //gets the contours for input image in image dictionary
+                var m_ShapeContours = CalculateContours(m_ShapeTemplate); //gets the contours for shape template image
+
+                if (m_DictContours.Size == 0 || m_ShapeContours.Size == 0)
+                {
+                    throw new Exception("Not enough contours");
+                }
+
+                for (int i = 0; i < m_DictContours.Size; i++)
+                {
+                    var distance = CvInvoke.MatchShapes(m_DictContours[i], m_ShapeContours[0], ContoursMatchType.I2);
+
+                    if (distance <= shape_threshold)
+                    {
+                        var rect = CvInvoke.BoundingRectangle(m_DictContours[i]);
+                        m_DictClone.Draw(rect, new Gray(), 4);
+                        CvInvoke.PutText(m_DictClone, distance.ToString("F6"), new Point(rect.X, rect.Y+20), FontFace.HersheyPlain, 3, new MCvScalar(255, 0, 0));
+                    }
+                }
+
+                return m_DictClone;
+
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                throw new Exception(ex.Message);
+                throw new Exception(e.Message);
+            }
+        }
+
+
+        /// <summary>
+        /// Method that calculates the contours of an input image.
+        /// </summary>
+        /// <param name="image"> Input image </param>
+        /// <param name="thresholdArea"> Hard-coded threshold amount </param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private static VectorOfVectorOfPoint CalculateContours (Image<Gray, byte> image, double thresholdArea = 10000)
+        {
+            try
+            {
+                VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint();
+                VectorOfVectorOfPoint filteredContours = new VectorOfVectorOfPoint();
+                Mat hierarchy = new Mat();
+
+                CvInvoke.FindContours(image, contours, hierarchy, RetrType.External, ChainApproxMethod.ChainApproxSimple);                             
+
+                for (int i = 0; i < contours.Size; i++)
+                {
+                    var area = CvInvoke.ContourArea(contours[i]);
+                    if (area >= thresholdArea)
+                    {
+                        filteredContours.Push(contours[i]);
+                    }
+                }
+
+                return filteredContours;
+            }
+            catch (Exception e)
+            {
+                throw new Exception(e.Message);
             }
         }
         
 
-
-        // Some API error codes, using an enum type
+        // Some SmartSEM API error codes
         public enum ZeissErrorCode
         {
             API_E_NO_ERROR = 0,
